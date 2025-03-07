@@ -68,7 +68,6 @@ It requires:
 
 			// Print or save output
 			output_service.PrintConditionally(string(resultJSON))
-			output_service.PrintConditionally(string(resultJSON))
 			if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
 				pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
 				os.Exit(1)
