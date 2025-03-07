@@ -56,7 +56,7 @@ Arguments:
 			// Fetch all following using pagination
 			following, reqErr := following_service.GetAll(userID, cookies, count, maxID, thread_flag.APIThreads, following_flag.SleepTime)
 			if reqErr != nil {
-				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all following: %s\nOnly partial results available", reqErr))
+				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all following: %s. Only partial results available", reqErr))
 			}
 
 			// Convert to JSON
