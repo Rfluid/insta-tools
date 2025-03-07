@@ -68,7 +68,11 @@ It requires:
 
 			// Print or save output
 			output_service.PrintConditionally(string(resultJSON))
-			output_service.WriteConditionally(string(resultJSON))
+			output_service.PrintConditionally(string(resultJSON))
+			if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
+				pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
+				os.Exit(1)
+			}
 			if reqErr != nil {
 				os.Exit(1)
 			}
@@ -84,7 +88,7 @@ It requires:
 
 		data, reqErr := followers_service.Get(userID, cookies, count, maxID)
 		if reqErr != nil {
-			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching followers: %s", err))
+			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching followers: %s", reqErr))
 		}
 
 		// Convert map[string]interface{} to JSON
@@ -95,7 +99,11 @@ It requires:
 		}
 
 		output_service.PrintConditionally(string(resultJSON))
-		output_service.WriteConditionally(string(resultJSON))
+		output_service.PrintConditionally(string(resultJSON))
+		if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
+			pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
+			os.Exit(1)
+		}
 		if reqErr != nil {
 			os.Exit(1)
 		}
