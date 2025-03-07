@@ -1,6 +1,7 @@
 package cookie_service
 
 import (
+	"fmt"
 	"strings"
 
 	cookie_flag "github.com/Rfluid/insta-tools/src/cookie/flag"
@@ -37,7 +38,7 @@ func ParseCookies() map[string]string {
 
 	log_service.LogConditionally(
 		pterm.DefaultLogger.Info,
-		"Parsed cookies to map.",
+		fmt.Sprintf("Parsed cookies to map %s", cookieMap),
 	)
 
 	return cookieMap
