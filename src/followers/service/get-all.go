@@ -9,157 +9,163 @@ import (
 	"github.com/pterm/pterm"
 )
 
-// GetAll retrieves all followers concurrently with pagination support.
+type fetchResult struct {
+	Followers []map[string]interface{}
+	NextMaxID string
+	Err       error
+}
+
+// GetAll retrieves *all* followers concurrently using a manager–worker pattern.
 func GetAll(
 	userID string,
 	cookies map[string]string,
 	count int,
-	maxID string,
+	initialMaxID string,
 	threads int,
 	sleepTime int,
 ) ([]map[string]interface{}, error) {
+	// ------------------------------------------------------------------------
+	// Data structures
+	// ------------------------------------------------------------------------
 	var (
-		followers      []map[string]interface{}
-		retrievedCount int
-
-		// Global mutex for shared data
-		dataMu sync.Mutex
-
-		// WaitGroup to know when all workers have finished
-		wg sync.WaitGroup
-
-		// Shared error tracking
-		globalErr error
-		errMu     sync.Mutex
-
-		// A flag to indicate whether there are more pages to fetch
-		hasMore      = true
-		hasMoreMutex sync.Mutex
+		allFollowers []map[string]interface{}
+		dataMu       sync.Mutex // protects allFollowers
+		globalErr    error
+		errMu        sync.Mutex
 	)
 
-	// Channel to queue up "maxID" tasks.
-	taskChan := make(chan string, threads)
-	// Channel to collect errors from workers.
-	errCh := make(chan error, threads)
+	// Channel of tasks, where each task is "fetch the next page for this maxID"
+	taskChan := make(chan string)
 
-	log_service.LogConditionally(
-		pterm.DefaultLogger.Info,
-		"Starting to retrieve followers...",
-	)
+	// Channel of results, each worker sends back a FetchResult
+	resultsChan := make(chan fetchResult)
 
-	// -------------------------------------------------------
-	// Worker function
-	// -------------------------------------------------------
+	var wg sync.WaitGroup // WaitGroup for workers
+
+	// ------------------------------------------------------------------------
+	// Worker pool
+	// ------------------------------------------------------------------------
 	worker := func() {
 		defer wg.Done()
 
-		for currentMaxID := range taskChan {
+		for maxID := range taskChan {
 			log_service.LogConditionally(
 				pterm.DefaultLogger.Info,
-				fmt.Sprintf("Fetching followers with maxID: %s...", currentMaxID),
+				fmt.Sprintf("Fetching followers for maxID: %s", maxID),
 			)
-
-			// 1. Make the request
-			result, err := Get(userID, cookies, count, currentMaxID)
+			result, err := Get(userID, cookies, count, maxID)
 			if err != nil {
-				errCh <- err
+				// Send error back
+				resultsChan <- fetchResult{
+					Err: fmt.Errorf("fetch error for maxID=%s: %w", maxID, err),
+				}
 				continue
 			}
 
-			// 2. Extract the "users" field
-			batchFollowers, ok := result["users"].([]interface{})
+			batch, ok := result["users"].([]interface{})
 			if !ok {
-				errCh <- fmt.Errorf("invalid response format; missing 'users' array for maxID %s", currentMaxID)
+				// Invalid response format
+				resultsChan <- fetchResult{
+					Err: fmt.Errorf("invalid response format; missing 'users' array for maxID=%s", maxID),
+				}
 				continue
 			}
 
-			// Convert the raw slice of interfaces into []map[string]interface{}
-			var batchResults []map[string]interface{}
-			for _, item := range batchFollowers {
+			// Convert []interface{} → []map[string]interface{}
+			var batchFollowers []map[string]interface{}
+			for _, item := range batch {
 				if fm, ok := item.(map[string]interface{}); ok {
-					batchResults = append(batchResults, fm)
+					batchFollowers = append(batchFollowers, fm)
 				}
 			}
 
-			// 3. Safely update global slice & count
-			dataMu.Lock()
-			followers = append(followers, batchResults...)
-			retrievedCount += len(batchResults)
-			dataMu.Unlock()
-
-			log_service.LogConditionally(
-				pterm.DefaultLogger.Info,
-				fmt.Sprintf("Retrieved %d followers in this batch. Total so far: %d", len(batchResults), retrievedCount),
-			)
-
-			// 4. Find the next maxID for pagination
 			nextMaxID, _ := result["next_max_id"].(string)
 
-			// 5. Respect the API rate limits by sleeping
+			// Optional rate limiting
 			time.Sleep(time.Duration(sleepTime) * time.Second)
 
-			// 6. Decide if we have more pages to fetch
-			if nextMaxID == "" {
-				// If there's no next page, signal no more
-				hasMoreMutex.Lock()
-				hasMore = false
-				hasMoreMutex.Unlock()
-			} else {
-				// If we still have more pages, queue nextMaxID
-				hasMoreMutex.Lock()
-				if hasMore {
-					taskChan <- nextMaxID
-				}
-				hasMoreMutex.Unlock()
+			// Send success result
+			resultsChan <- fetchResult{
+				Followers: batchFollowers,
+				NextMaxID: nextMaxID,
+				Err:       nil,
 			}
 		}
 	}
 
-	// -------------------------------------------------------
-	// Spin up N worker goroutines
-	// -------------------------------------------------------
+	// Spin up N workers
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
 		go worker()
 	}
 
-	// -------------------------------------------------------
-	// Error collector goroutine
-	// -------------------------------------------------------
-	var errWg sync.WaitGroup
-	errWg.Add(1)
+	// ------------------------------------------------------------------------
+	// Manager goroutine
+	// ------------------------------------------------------------------------
+	// The manager sends tasks (maxIDs) to workers, *and* collects results.
+	// We track how many tasks are "in flight" so we know when to stop.
+	// Because tasks can generate new tasks (i.e. nextMaxID), we dynamically
+	// feed them back into the worker pool.
+	managerWg := sync.WaitGroup{}
+	managerWg.Add(1)
+
 	go func() {
-		defer errWg.Done()
-		for e := range errCh {
-			if e != nil {
+		defer managerWg.Done()
+
+		// Start by feeding the initial maxID
+		inFlight := 1
+		taskChan <- initialMaxID
+
+		// Keep reading results until inFlight == 0
+		for inFlight > 0 {
+			res, ok := <-resultsChan
+			if !ok {
+				// If resultsChan is closed unexpectedly, we break
+				break
+			}
+
+			// Decrement in-flight count for the completed task
+			inFlight--
+
+			if res.Err != nil {
+				// Record error (if you only want the first error, store it once)
 				errMu.Lock()
-				// Record the first non-nil error, or extend to track them all if desired.
 				if globalErr == nil {
-					globalErr = e
+					globalErr = res.Err
 				}
 				errMu.Unlock()
+				// We can keep going, or break early, up to you.
+				continue
+			}
+
+			// Append the returned followers
+			dataMu.Lock()
+			allFollowers = append(allFollowers, res.Followers...)
+			dataMu.Unlock()
+
+			// If there's a nextMaxID, enqueue a new task
+			if res.NextMaxID != "" {
+				inFlight++
+				taskChan <- res.NextMaxID
 			}
 		}
+
+		// No more tasks will be generated -> close the worker channel
+		close(taskChan)
 	}()
 
-	// -------------------------------------------------------
-	// Feed the initial maxID into the pipeline
-	// -------------------------------------------------------
-	taskChan <- maxID
-
-	// Wait for all workers to finish
+	// ------------------------------------------------------------------------
+	// Wait for workers to finish
+	// ------------------------------------------------------------------------
 	wg.Wait()
 
-	// Close channels now that all workers are done
-	close(taskChan)
-	close(errCh)
+	// When all workers are done reading from taskChan, they exit
+	// so no one else will write to resultsChan. Now we can close resultsChan.
+	close(resultsChan)
 
-	errWg.Wait()
+	// The manager goroutine might still be waiting in the for-loop above,
+	// but it will break out once resultsChan is closed. Wait for manager to finish.
+	managerWg.Wait()
 
-	log_service.LogConditionally(
-		pterm.DefaultLogger.Info,
-		fmt.Sprintf("Retrieval complete. Retrieved %d followers.", len(followers)),
-	)
-
-	return followers, globalErr
+	return allFollowers, globalErr
 }
