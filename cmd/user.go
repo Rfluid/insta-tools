@@ -35,9 +35,9 @@ Example:
 		// Fetch user profile info
 		log_service.LogConditionally(pterm.DefaultLogger.Info, fmt.Sprintf("Fetching user for %s", username))
 
-		data, err := user_service.Get(username, cookies)
-		if err != nil {
-			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching user: %s", err))
+		data, reqErr := user_service.Get(username, cookies)
+		if reqErr != nil {
+			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching user: %s", reqErr))
 		}
 
 		// Convert map[string]interface{} to JSON
@@ -47,10 +47,12 @@ Example:
 			os.Exit(1)
 		}
 
-		// Print or save output
 		output_service.PrintConditionally(string(resultJSON))
 		if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
 			pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
+			os.Exit(1)
+		}
+		if reqErr != nil {
 			os.Exit(1)
 		}
 	},
