@@ -57,7 +57,7 @@ func GetAll(
 			if err != nil {
 				// Send error back
 				resultsChan <- fetchResult{
-					Err: fmt.Errorf("fetch error for maxID=%s: %w", maxID, err),
+					Err: err,
 				}
 				continue
 			}
