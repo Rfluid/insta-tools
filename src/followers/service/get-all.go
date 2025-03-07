@@ -129,11 +129,11 @@ func GetAll(
 
 			if res.Err != nil {
 				// Record error (if you only want the first error, store it once)
-				errMu.Lock()
-				if globalErr == nil {
+				if res.Err != nil {
+					errMu.Lock()
 					globalErr = res.Err
+					errMu.Unlock()
 				}
-				errMu.Unlock()
 				// We can keep going, or break early, up to you.
 				continue
 			}
