@@ -25,10 +25,6 @@ func ParseCookies() map[string]string {
 
 	// Split the cookie string by `; ` to separate each key-value pair
 	pairs := strings.Split(cookie_flag.Cookies, "; ")
-	log_service.LogConditionally(
-		pterm.DefaultLogger.Info,
-		"Executing loop to parse cookies...",
-	)
 	for _, pair := range pairs {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) == 2 {
