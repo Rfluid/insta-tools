@@ -62,7 +62,7 @@ func GetAll(
 			// 1. Make the request
 			result, err := Get(userID, cookies, count, currentMaxID)
 			if err != nil {
-				errCh <- fmt.Errorf("error fetching following with maxID %s: %w", currentMaxID, err)
+				errCh <- err
 				continue
 			}
 
