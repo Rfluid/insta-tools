@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	log_service "github.com/Rfluid/insta-tools/src/log/service"
+	"github.com/pterm/pterm"
 )
 
 // Get fetches Instagram user profile info, including the user ID.
@@ -37,7 +40,17 @@ func Get(username string, cookies map[string]string) (map[string]interface{}, er
 
 	// Check if response is successful
 	if resp.StatusCode != http.StatusOK {
-		return nil, err
+		log_service.LogConditionally(
+			pterm.DefaultLogger.Error,
+			fmt.Sprintf("Error fetching user. API status code is %v", resp.StatusCode),
+		)
+
+		var result map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+
+		return result, fmt.Errorf("bad status code (%v) in API response", resp.StatusCode)
 	}
 
 	// Parse the JSON response

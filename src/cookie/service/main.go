@@ -1,6 +1,7 @@
 package cookie_service
 
 import (
+	"fmt"
 	"strings"
 
 	cookie_flag "github.com/Rfluid/insta-tools/src/cookie/flag"
@@ -24,10 +25,6 @@ func ParseCookies() map[string]string {
 
 	// Split the cookie string by `; ` to separate each key-value pair
 	pairs := strings.Split(cookie_flag.Cookies, "; ")
-	log_service.LogConditionally(
-		pterm.DefaultLogger.Info,
-		"Executing loop to parse cookies...",
-	)
 	for _, pair := range pairs {
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) == 2 {
@@ -37,7 +34,7 @@ func ParseCookies() map[string]string {
 
 	log_service.LogConditionally(
 		pterm.DefaultLogger.Info,
-		"Parsed cookies to map.",
+		fmt.Sprintf("Parsed cookies to map %s", cookieMap),
 	)
 
 	return cookieMap

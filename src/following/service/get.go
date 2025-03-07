@@ -4,10 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	log_service "github.com/Rfluid/insta-tools/src/log/service"
+	"github.com/pterm/pterm"
 )
 
 // Get makes a request to Instagram's API and returns the result as a map[string]interface{}
-func Get(userID string, cookies map[string]string, count int, maxID string) (map[string]interface{}, error) {
+func Get(
+	userID string,
+	cookies map[string]string,
+	count int,
+	maxID string,
+) (map[string]interface{}, error) {
 	// Construct the request URL with user ID
 	url := fmt.Sprintf("https://www.instagram.com/api/v1/friendships/%s/following/", userID)
 
@@ -45,7 +53,17 @@ func Get(userID string, cookies map[string]string, count int, maxID string) (map
 
 	// Check if response is successful
 	if resp.StatusCode != http.StatusOK {
-		return nil, err
+		log_service.LogConditionally(
+			pterm.DefaultLogger.Error,
+			fmt.Sprintf("Error fetching following. API status code is %v", resp.StatusCode),
+		)
+
+		var result map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+
+		return result, fmt.Errorf("bad status code (%v) in API response", resp.StatusCode)
 	}
 
 	// Parse the JSON response

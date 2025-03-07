@@ -37,8 +37,7 @@ Example:
 
 		data, err := user_service.Get(username, cookies)
 		if err != nil {
-			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching user ID: %s", err))
-			os.Exit(1)
+			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching user: %s", err))
 		}
 
 		// Convert map[string]interface{} to JSON
@@ -54,8 +53,6 @@ Example:
 			pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
 			os.Exit(1)
 		}
-
-		log_service.LogConditionally(pterm.DefaultLogger.Info, "User retrieval process completed successfully.")
 	},
 }
 

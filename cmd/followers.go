@@ -29,7 +29,7 @@ It requires:
 1. A valid userID.
 2. A batch count (number of followers per request).
 3. An optional maxID to paginate requests.`,
-	Args: cobra.ExactArgs(3), // Ensure exactly 3 arguments are provided
+	Args: cobra.RangeArgs(2, 3),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Parse arguments
 		userID := args[0]
@@ -38,7 +38,10 @@ It requires:
 			pterm.DefaultLogger.Error("Invalid count argument. Must be an integer.")
 			os.Exit(1)
 		}
-		maxID := args[2]
+		maxID := ""
+		if len(args) == 3 {
+			maxID = args[2]
+		}
 
 		// Parse cookies
 		cookies := cookie_service.ParseCookies()
@@ -51,10 +54,9 @@ It requires:
 			)
 
 			// Fetch all followers using pagination
-			followers, err := followers_service.GetAll(userID, cookies, count, maxID, thread_flag.APIThreads, followers_flag.SleepTime)
-			if err != nil {
-				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all followers: %s", err))
-				os.Exit(1)
+			followers, reqErr := followers_service.GetAll(userID, cookies, count, maxID, thread_flag.APIThreads, followers_flag.SleepTime)
+			if reqErr != nil {
+				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all followers: %s. Only partial results available", reqErr))
 			}
 
 			// Convert to JSON
@@ -66,12 +68,11 @@ It requires:
 
 			// Print or save output
 			output_service.PrintConditionally(string(resultJSON))
-			if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
-				pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
+			output_service.WriteConditionally(string(resultJSON))
+			if reqErr != nil {
 				os.Exit(1)
 			}
 
-			log_service.LogConditionally(pterm.DefaultLogger.Info, "Followers retrieval completed successfully.")
 			return
 		}
 
@@ -81,10 +82,9 @@ It requires:
 			fmt.Sprintf("Fetching followers for userID: %s with count: %d and maxID: %s", userID, count, maxID),
 		)
 
-		data, err := followers_service.Get(userID, cookies, count, maxID)
-		if err != nil {
+		data, reqErr := followers_service.Get(userID, cookies, count, maxID)
+		if reqErr != nil {
 			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching followers: %s", err))
-			os.Exit(1)
 		}
 
 		// Convert map[string]interface{} to JSON
@@ -94,14 +94,11 @@ It requires:
 			os.Exit(1)
 		}
 
-		// Print or save output
 		output_service.PrintConditionally(string(resultJSON))
-		if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
-			pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
+		output_service.WriteConditionally(string(resultJSON))
+		if reqErr != nil {
 			os.Exit(1)
 		}
-
-		log_service.LogConditionally(pterm.DefaultLogger.Info, "Followers retrieval process completed successfully.")
 	},
 }
 
