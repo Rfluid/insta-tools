@@ -2,7 +2,6 @@ package following_service
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -56,7 +55,7 @@ func Get(
 	if resp.StatusCode != http.StatusOK {
 		log_service.LogConditionally(
 			pterm.DefaultLogger.Error,
-			fmt.Sprintf("Error fetching following: %s", err),
+			fmt.Sprintf("Error fetching following. API status code is %v", resp.StatusCode),
 		)
 
 		var result map[string]interface{}
@@ -64,7 +63,7 @@ func Get(
 			return nil, err
 		}
 
-		return result, errors.New("bad status code in API response")
+		return result, fmt.Errorf("bad status code (%v) in API response", resp.StatusCode)
 	}
 
 	// Parse the JSON response
