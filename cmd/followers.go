@@ -29,7 +29,7 @@ It requires:
 1. A valid userID.
 2. A batch count (number of followers per request).
 3. An optional maxID to paginate requests.`,
-	Args: cobra.ExactArgs(3), // Ensure exactly 3 arguments are provided
+	Args: cobra.RangeArgs(2, 3),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Parse arguments
 		userID := args[0]
@@ -38,7 +38,10 @@ It requires:
 			pterm.DefaultLogger.Error("Invalid count argument. Must be an integer.")
 			os.Exit(1)
 		}
-		maxID := args[2]
+		maxID := ""
+		if len(args) == 3 {
+			maxID = args[2]
+		}
 
 		// Parse cookies
 		cookies := cookie_service.ParseCookies()
@@ -84,7 +87,6 @@ It requires:
 		data, err := followers_service.Get(userID, cookies, count, maxID)
 		if err != nil {
 			pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching followers: %s", err))
-			os.Exit(1)
 		}
 
 		// Convert map[string]interface{} to JSON
@@ -96,12 +98,7 @@ It requires:
 
 		// Print or save output
 		output_service.PrintConditionally(string(resultJSON))
-		if err := output_service.WriteConditionally(string(resultJSON)); err != nil {
-			pterm.DefaultLogger.Error(fmt.Sprintf("Error writing output: %s", err))
-			os.Exit(1)
-		}
-
-		log_service.LogConditionally(pterm.DefaultLogger.Info, "Followers retrieval process completed successfully.")
+		output_service.WriteConditionally(string(resultJSON))
 	},
 }
 
