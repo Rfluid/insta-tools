@@ -56,7 +56,7 @@ It requires:
 			// Fetch all followers using pagination
 			followers, reqErr := followers_service.GetAll(userID, cookies, count, maxID, thread_flag.APIThreads, followers_flag.SleepTime)
 			if reqErr != nil {
-				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all followers: %s\nOnly partial results available", err))
+				pterm.DefaultLogger.Error(fmt.Sprintf("Error fetching all followers: %s\nOnly partial results available", reqErr))
 			}
 
 			// Convert to JSON
